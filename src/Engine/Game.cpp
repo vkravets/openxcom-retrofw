@@ -45,6 +45,7 @@
 #include "../Menu/TestState.h"
 #include <algorithm>
 #include "../fallthrough.h"
+#include "Controller.h"
 
 namespace OpenXcom
 {
@@ -70,6 +71,11 @@ Game::Game(const std::string &title) : _screen(0), _cursor(0), _lang(0), _save(0
 		throw Exception(SDL_GetError());
 	}
 	Log(LOG_INFO) << "SDL initialized successfully.";
+
+	// Initialize controller if needed
+	#ifdef GAMEPAD_ENABLED
+		Controller::Initiate(this);
+	#endif
 
 	// Initialize SDL_mixer
 	initAudio();
@@ -179,11 +185,31 @@ void Game::run()
 			_states.back()->handle(&action);
 		}
 
+		#ifdef GAMEPAD_ENABLED
+		Controller::MoveMouse(_fpsCounter->getFPS()); //Move mouse based on previous tick's input.
+		#endif
+
 		// Process events
 		while (SDL_PollEvent(&_event))
 		{
 			if (CrossPlatform::isQuitShortcut(_event))
 				_event.type = SDL_QUIT;
+
+			#ifdef GAMEPAD_ENABLED
+
+			switch(_event.type)
+			{
+				
+				case SDL_JOYBUTTONDOWN:
+				case SDL_JOYBUTTONUP:
+				case SDL_JOYHATMOTION:
+				case SDL_JOYAXISMOTION:
+					Controller::Joy2Key(_event);
+					break;
+			}
+
+			#endif
+
 			switch (_event.type)
 			{
 				case SDL_QUIT:

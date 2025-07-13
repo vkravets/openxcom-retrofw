@@ -99,6 +99,7 @@ BaseNameState::BaseNameState(Base *base, Globe *globe, bool first, bool fixedLoc
 	_edtName->setBig();
 	_edtName->setFocus(true, false);
 	_edtName->onChange((ActionHandler)&BaseNameState::edtNameChange);
+	_edtName->onMouseClick((ActionHandler)&BaseNameState::edtNameChange);
 }
 
 /**
@@ -124,10 +125,7 @@ void BaseNameState::edtNameChange(Action *action)
 			btnOkClick(action);
 		}
 	}
-	else
-	{
-		_btnOk->setVisible(!_edtName->getText().empty());
-	}
+	_btnOk->setVisible(!_edtName->getText().empty());
 }
 
 /**

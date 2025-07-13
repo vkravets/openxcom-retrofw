@@ -68,6 +68,7 @@ bin/TFTD
 deps/
 docs/html/
 build/
+build-rg35xx-garlic/
 Dependencies/
 translations/
 *.*.user
