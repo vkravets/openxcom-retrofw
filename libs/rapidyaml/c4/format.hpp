@@ -8,7 +8,7 @@
 #include "c4/blob.hpp"
 
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #   pragma warning(push)
 #   if C4_MSVC_VERSION != C4_MSVC_VERSION_2017
 #       pragma warning(disable: 4800) // forcing value to bool 'true' or 'false' (performance warning)
@@ -20,6 +20,7 @@
 #   pragma GCC diagnostic push
 #   pragma GCC diagnostic ignored "-Wuseless-cast"
 #endif
+// NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast,*avoid-goto*)
 
 /** @defgroup doc_format_utils Format utilities
  *
@@ -976,7 +977,6 @@ inline CharOwningContainer catseprs(Sep const& C4_RESTRICT sep, Args const& C4_R
  * the result. The buffer is appended to.
  *
  * @return a csubstr of the appended part
- * @ingroup formatting_functions
  * @ingroup doc_catsep */
 template<class CharOwningContainer, class Sep, class... Args>
 inline csubstr catseprs_append(CharOwningContainer * C4_RESTRICT cont, Sep const& C4_RESTRICT sep, Args const& C4_RESTRICT ...args)
@@ -1028,7 +1028,6 @@ inline CharOwningContainer formatrs(csubstr fmt, Args const& C4_RESTRICT ...args
  * arguments, resizing the container as needed to contain the
  * result. The buffer is appended to.
  * @return the region newly appended to the original container
- * @ingroup formatting_functions
  * @ingroup doc_format */
 template<class CharOwningContainer, class... Args>
 inline csubstr formatrs_append(CharOwningContainer * C4_RESTRICT cont, csubstr fmt, Args const& C4_RESTRICT ...args)
@@ -1047,6 +1046,7 @@ retry:
 
 } // namespace c4
 
+// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast,*avoid-goto*)
 #ifdef _MSC_VER
 #   pragma warning(pop)
 #elif defined(__clang__)

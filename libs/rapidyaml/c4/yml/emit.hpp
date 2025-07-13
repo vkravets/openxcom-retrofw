@@ -15,19 +15,6 @@
 #include "./node.hpp"
 #endif
 
-#define RYML_DEPRECATE_EMIT                                             \
-    RYML_DEPRECATED("use emit_yaml() instead. "                         \
-                    "See https://github.com/biojppm/rapidyaml/issues/120")
-#define RYML_DEPRECATE_EMITRS                                           \
-    RYML_DEPRECATED("use emitrs_yaml() instead. "                       \
-                    "See https://github.com/biojppm/rapidyaml/issues/120")
-
-#ifdef emit
-#error "emit is defined, likely from a Qt include. "                    \
-    "This will cause a compilation error. "                             \
-    "See https://github.com/biojppm/rapidyaml/issues/120"
-#endif
-
 
 C4_SUPPRESS_WARNING_GCC_CLANG_WITH_PUSH("-Wold-style-cast")
 
@@ -75,9 +62,9 @@ typedef enum {
 struct EmitOptions
 {
     typedef enum : uint32_t {
-        DEFAULT_FLAGS = 0,
-        JSON_ERR_ON_TAG = 1 << 0,
-        JSON_ERR_ON_ANCHOR = 1 << 1,
+        DEFAULT_FLAGS = 0u,
+        JSON_ERR_ON_TAG = 1u << 0u,
+        JSON_ERR_ON_ANCHOR = 1u << 1u,
         _JSON_ERR_MASK = JSON_ERR_ON_TAG|JSON_ERR_ON_ANCHOR,
     } EmitOptionFlags_e;
 
@@ -472,7 +459,6 @@ inline OStream& operator<< (OStream& s, as_yaml const& y)
  * @param id the node where to start emitting.
  * @param opts emit options.
  * @param buf the output buffer.
- * @param opts emit options.
  * @param error_on_excess Raise an error if the space in the buffer is insufficient.
  * @return a substr trimmed to the result in the output buffer. If the buffer is
  * insufficient (when error_on_excess is false), the string pointer of the
@@ -493,7 +479,6 @@ inline substr emit_yaml(Tree const& t, id_type id, substr buf, bool error_on_exc
  * @param id the node where to start emitting.
  * @param opts emit options.
  * @param buf the output buffer.
- * @param opts emit options.
  * @param error_on_excess Raise an error if the space in the buffer is insufficient.
  * @return a substr trimmed to the result in the output buffer. If the buffer is
  * insufficient (when error_on_excess is false), the string pointer of the
@@ -515,6 +500,7 @@ inline substr emit_json(Tree const& t, id_type id, substr buf, bool error_on_exc
 
 /** (1) emit YAML to the given buffer. Return a substr trimmed to the emitted YAML.
  * @param t the tree; will be emitted from the root node.
+ * @param opts emit options.
  * @param buf the output buffer.
  * @param error_on_excess Raise an error if the space in the buffer is insufficient.
  * @return a substr trimmed to the result in the output buffer. If the buffer is
@@ -533,6 +519,7 @@ inline substr emit_yaml(Tree const& t, substr buf, bool error_on_excess=true)
 }
 /** (1) emit JSON to the given buffer. Return a substr trimmed to the emitted JSON.
  * @param t the tree; will be emitted from the root node.
+ * @param opts emit options.
  * @param buf the output buffer.
  * @param error_on_excess Raise an error if the space in the buffer is insufficient.
  * @return a substr trimmed to the result in the output buffer. If the buffer is
@@ -829,6 +816,21 @@ CharOwningContainer emitrs_json(ConstNodeRef const& n, EmitOptions const& opts={
 
 /** @cond dev */
 
+#define RYML_DEPRECATE_EMIT                                             \
+    RYML_DEPRECATED("use emit_yaml() instead. "                         \
+                    "See https://github.com/biojppm/rapidyaml/issues/120")
+#define RYML_DEPRECATE_EMITRS                                           \
+    RYML_DEPRECATED("use emitrs_yaml() instead. "                       \
+                    "See https://github.com/biojppm/rapidyaml/issues/120")
+
+// workaround for Qt emit which is a macro;
+// see https://github.com/biojppm/rapidyaml/issues/120.
+// emit is defined in qobjectdefs.h (as an empty define).
+#ifdef emit
+#define RYML_TMP_EMIT_
+#undef emit
+#endif
+
 RYML_DEPRECATE_EMIT inline size_t emit(Tree const& t, id_type id, FILE *f)
 {
     return emit_yaml(t, id, f);
@@ -854,6 +856,11 @@ RYML_DEPRECATE_EMIT inline substr emit(ConstNodeRef const& r, substr buf, bool e
 {
     return emit_yaml(r, buf, error_on_excess);
 }
+
+#ifdef RYML_TMP_EMIT_
+#define emit
+#undef RYML_TMP_EMIT_
+#endif
 
 template<class CharOwningContainer>
 RYML_DEPRECATE_EMITRS substr emitrs(Tree const& t, id_type id, CharOwningContainer * cont)
@@ -885,6 +892,7 @@ RYML_DEPRECATE_EMITRS CharOwningContainer emitrs(ConstNodeRef const& n)
 {
     return emitrs_yaml<CharOwningContainer>(n);
 }
+
 /** @endcond */
 
 
@@ -896,6 +904,6 @@ C4_SUPPRESS_WARNING_GCC_CLANG_POP
 #undef RYML_DEPRECATE_EMIT
 #undef RYML_DEPRECATE_EMITRS
 
-#include "c4/yml/emit.def.hpp"
+#include "c4/yml/emit.def.hpp" // NOLINT
 
 #endif /* _C4_YML_EMIT_HPP_ */

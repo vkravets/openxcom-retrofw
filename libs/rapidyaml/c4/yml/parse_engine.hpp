@@ -15,6 +15,7 @@
 #   pragma warning(disable: 4251/*needs to have dll-interface to be used by clients of struct*/)
 #endif
 
+// NOLINTBEGIN(hicpp-signed-bitwise)
 
 namespace c4 {
 namespace yml {
@@ -214,8 +215,8 @@ struct RYML_EXPORT ParserOptions
 private:
 
     typedef enum : uint32_t {
-        SCALAR_FILTERING = (1u << 0),
-        LOCATIONS = (1u << 1),
+        SCALAR_FILTERING = (1u << 0u),
+        LOCATIONS = (1u << 1u),
         DEFAULTS = SCALAR_FILTERING,
     } Flags_e;
 
@@ -302,9 +303,9 @@ public:
     ParseEngine(EventHandler *evt_handler, ParserOptions opts={});
     ~ParseEngine();
 
-    ParseEngine(ParseEngine &&);
+    ParseEngine(ParseEngine &&) noexcept;
     ParseEngine(ParseEngine const&);
-    ParseEngine& operator=(ParseEngine &&);
+    ParseEngine& operator=(ParseEngine &&) noexcept;
     ParseEngine& operator=(ParseEngine const&);
 
     /** @} */
@@ -364,6 +365,10 @@ public:
 
     /** Get the latest YAML buffer parsed by this object. */
     csubstr source() const { return m_buf; }
+
+    /** Get the encoding of the latest YAML buffer parsed by this object.
+     * If no encoding was specified, UTF8 is assumed as per the YAML standard. */
+    Encoding_e encoding() const { return m_encoding != NOBOM ? m_encoding : UTF8; }
 
     id_type stack_capacity() const { RYML_ASSERT(m_evt_handler); return m_evt_handler->m_stack.capacity(); }
     size_t locations_capacity() const { return m_newline_offsets_capacity; }
@@ -628,7 +633,7 @@ private:
     void   _scan_line();
     substr _peek_next_line(size_t pos=npos) const;
 
-    inline bool _at_line_begin() const
+    bool _at_line_begin() const
     {
         return m_evt_handler->m_curr->line_contents.rem.begin() == m_evt_handler->m_curr->line_contents.full.begin();
     }
@@ -699,6 +704,7 @@ private:
         size_t num_entries;
     };
 
+    void _handle_colon();
     void _add_annotation(Annotation *C4_RESTRICT dst, csubstr str, size_t indentation, size_t line);
     void _clear_annotations(Annotation *C4_RESTRICT dst);
     bool _has_pending_annotations() const { return m_pending_tags.num_entries || m_pending_anchors.num_entries; }
@@ -713,6 +719,8 @@ private:
     void _handle_annotations_and_indentation_after_start_mapblck(size_t key_indentation, size_t key_line);
     size_t _select_indentation_from_annotations(size_t val_indentation, size_t val_line);
     void _handle_directive(csubstr rem);
+    bool _handle_bom();
+    void _handle_bom(Encoding_e enc);
 
     void _check_tag(csubstr tag);
 
@@ -726,7 +734,7 @@ private:
 public:
 
     /** @cond dev */
-    EventHandler *C4_RESTRICT m_evt_handler;
+    EventHandler *C4_RESTRICT m_evt_handler; // NOLINT
     /** @endcond */
 
 private:
@@ -736,6 +744,9 @@ private:
 
     bool m_was_inside_qmrk;
     bool m_doc_empty = true;
+    size_t m_prev_colon = npos;
+
+    Encoding_e m_encoding = UTF8;
 
 private:
 
@@ -764,12 +775,14 @@ RYML_EXPORT C4_NO_INLINE size_t _find_last_newline_and_larger_indentation(csubst
  * resulting number of nodes, notably if the YAML uses implicit
  * maps as flow seq members as in `[these: are, individual:
  * maps]`. */
-RYML_EXPORT id_type estimate_tree_capacity(csubstr src);
+RYML_EXPORT id_type estimate_tree_capacity(csubstr src); // NOLINT(readability-redundant-declaration)
 
 /** @} */
 
 } // namespace yml
 } // namespace c4
+
+// NOLINTEND(hicpp-signed-bitwise)
 
 #if defined(_MSC_VER)
 #   pragma warning(pop)

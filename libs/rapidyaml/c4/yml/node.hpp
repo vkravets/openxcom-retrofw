@@ -36,7 +36,7 @@ namespace yml {
  *
  * @{
  */
-template<class K> struct Key { K & k; };
+template<class K> struct Key { K & k; }; // NOLINT
 template<> struct Key<fmt::const_base64_wrapper> { fmt::const_base64_wrapper wrapper; };
 template<> struct Key<fmt::base64_wrapper> { fmt::base64_wrapper wrapper; };
 
@@ -44,15 +44,13 @@ template<class K> C4_ALWAYS_INLINE Key<K> key(K & k) { return Key<K>{k}; }
 C4_ALWAYS_INLINE Key<fmt::const_base64_wrapper> key(fmt::const_base64_wrapper w) { return {w}; }
 C4_ALWAYS_INLINE Key<fmt::base64_wrapper> key(fmt::base64_wrapper w) { return {w}; }
 
+
 template<class T> void write(NodeRef *n, T const& v);
 
-template<class T>
-typename std::enable_if< ! std::is_floating_point<T>::value, bool>::type
-read(NodeRef const& n, T *v);
-
-template<class T>
-typename std::enable_if<   std::is_floating_point<T>::value, bool>::type
-read(NodeRef const& n, T *v);
+template<class T> inline bool read(ConstNodeRef const& C4_RESTRICT n, T *v);
+template<class T> inline bool read(NodeRef const& C4_RESTRICT n, T *v);
+template<class T> inline bool readkey(ConstNodeRef const& C4_RESTRICT n, T *v);
+template<class T> inline bool readkey(NodeRef const& C4_RESTRICT n, T *v);
 
 /** @} */
 
@@ -101,11 +99,11 @@ struct children_view_
 
     n_iterator b, e;
 
-    inline children_view_(n_iterator const& C4_RESTRICT b_,
+    children_view_(n_iterator const& C4_RESTRICT b_,
                           n_iterator const& C4_RESTRICT e_) : b(b_), e(e_) {}
 
-    inline n_iterator begin() const { return b; }
-    inline n_iterator end  () const { return e; }
+    n_iterator begin() const { return b; }
+    n_iterator end  () const { return e; }
 };
 
 template<class NodeRefType, class Visitor>
@@ -304,6 +302,7 @@ public:
 
     C4_ALWAYS_INLINE bool is_root()    const RYML_NOEXCEPT { _C4RR(); return tree_->is_root(id_); } /**< Forward to @ref Tree::is_root(). Node must be readable. */
     C4_ALWAYS_INLINE bool has_parent() const RYML_NOEXCEPT { _C4RR(); return tree_->has_parent(id_); } /**< Forward to @ref Tree::has_parent()  Node must be readable. */
+    C4_ALWAYS_INLINE bool is_ancestor(ConstImpl const& ancestor) const RYML_NOEXCEPT { _C4RR(); return tree_->is_ancestor(id_, ancestor.m_id); } /**< Forward to @ref Tree::is_ancestor()  Node must be readable. */
 
     C4_ALWAYS_INLINE bool has_child(ConstImpl const& n) const RYML_NOEXCEPT { _C4RR(); return n.readable() ? tree_->has_child(id_, n.m_id) : false; } /**< Forward to @ref Tree::has_child(). Node must be readable. */
     C4_ALWAYS_INLINE bool has_child(id_type node) const RYML_NOEXCEPT { _C4RR(); return tree_->has_child(id_, node); } /**< Forward to @ref Tree::has_child(). Node must be readable. */
@@ -328,8 +327,7 @@ public:
 
     template<class U=Impl>
     C4_ALWAYS_INLINE auto doc(id_type i) RYML_NOEXCEPT -> _C4_IF_MUTABLE(Impl) { RYML_ASSERT(tree_); return {tree__, tree__->doc(i)}; } /**< Forward to @ref Tree::doc(). Node must be readable. */
-    /** succeeds even when the node may have invalid or seed id */
-    C4_ALWAYS_INLINE ConstImpl doc(id_type i) const RYML_NOEXCEPT { RYML_ASSERT(tree_); return {tree_, tree_->doc(i)}; }                /**< Forward to @ref Tree::doc(). Node must be readable. */
+    C4_ALWAYS_INLINE ConstImpl doc(id_type i) const RYML_NOEXCEPT { RYML_ASSERT(tree_); return {tree_, tree_->doc(i)}; }                /**< Forward to @ref Tree::doc(). Node must be readable. succeeds even when the node may have invalid or seed id */
 
     template<class U=Impl>
     C4_ALWAYS_INLINE auto parent() RYML_NOEXCEPT -> _C4_IF_MUTABLE(Impl) { _C4RR(); return {tree__, tree__->parent(id__)}; } /**< Forward to @ref Tree::parent(). Node must be readable. */
@@ -633,41 +631,10 @@ public:
     ConstImpl const& operator>> (Key<T> v) const
     {
         _C4RR();
-        if(key().empty() || ! from_chars(key(), &v.k))
+        if( ! readkey((ConstImpl const&)*this, &v.k))
             _RYML_CB_ERR(tree_->m_callbacks, "could not deserialize key");
         return *((ConstImpl const*)this);
     }
-
-    /** deserialize the node's key as base64. lightweight wrapper over @ref deserialize_key() */
-    ConstImpl const& operator>> (Key<fmt::base64_wrapper> w) const
-    {
-        deserialize_key(w.wrapper);
-        return *((ConstImpl const*)this);
-    }
-
-    /** deserialize the node's val as base64. lightweight wrapper over @ref deserialize_val() */
-    ConstImpl const& operator>> (fmt::base64_wrapper w) const
-    {
-        deserialize_val(w);
-        return *((ConstImpl const*)this);
-    }
-
-    /** decode the base64-encoded key and assign the
-     * decoded blob to the given buffer/
-     * @return the size of base64-decoded blob */
-    size_t deserialize_key(fmt::base64_wrapper v) const
-    {
-        _C4RR();
-        return from_chars(key(), &v);
-    }
-    /** decode the base64-encoded key and assign the
-     * decoded blob to the given buffer/
-     * @return the size of base64-decoded blob */
-    size_t deserialize_val(fmt::base64_wrapper v) const
-    {
-        _C4RR();
-        return from_chars(val(), &v);
-    };
 
     /** look for a child by name, if it exists assign to var. return
      * true if the child existed. */
@@ -701,6 +668,42 @@ public:
             return false;
         }
     }
+
+    /** @name deserialization_base64 */
+    /** @{ */
+
+    /** deserialize the node's key as base64. lightweight wrapper over @ref deserialize_key() */
+    ConstImpl const& operator>> (Key<fmt::base64_wrapper> w) const
+    {
+        deserialize_key(w.wrapper);
+        return *((ConstImpl const*)this);
+    }
+
+    /** deserialize the node's val as base64. lightweight wrapper over @ref deserialize_val() */
+    ConstImpl const& operator>> (fmt::base64_wrapper w) const
+    {
+        deserialize_val(w);
+        return *((ConstImpl const*)this);
+    }
+
+    /** decode the base64-encoded key and assign the
+     * decoded blob to the given buffer/
+     * @return the size of base64-decoded blob */
+    size_t deserialize_key(fmt::base64_wrapper v) const
+    {
+        _C4RR();
+        return from_chars(key(), &v);
+    }
+    /** decode the base64-encoded key and assign the
+     * decoded blob to the given buffer/
+     * @return the size of base64-decoded blob */
+    size_t deserialize_val(fmt::base64_wrapper v) const
+    {
+        _C4RR();
+        return from_chars(val(), &v);
+    };
+
+    /** @} */
 
     /** @} */
 
@@ -832,7 +835,7 @@ public:
  *
  * @warning The lifetime of the tree must be larger than that of this
  * object. It is up to the user to ensure that this happens. */
-class RYML_EXPORT ConstNodeRef : public detail::RoNodeMethods<ConstNodeRef, ConstNodeRef>
+class RYML_EXPORT ConstNodeRef : public detail::RoNodeMethods<ConstNodeRef, ConstNodeRef> // NOLINT
 {
 public:
 
@@ -860,8 +863,8 @@ public:
     ConstNodeRef(ConstNodeRef const&) noexcept = default;
     ConstNodeRef(ConstNodeRef     &&) noexcept = default;
 
-    ConstNodeRef(NodeRef const&) noexcept;
-    ConstNodeRef(NodeRef     &&) noexcept;
+    inline ConstNodeRef(NodeRef const&) noexcept;
+    inline ConstNodeRef(NodeRef     &&) noexcept;
 
     /** @} */
 
@@ -935,6 +938,8 @@ public:
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
+// NOLINTBEGIN(cppcoreguidelines-c-copy-assignment-signature,misc-unconventional-assign-operator)
+
 /** A reference to a node in an existing yaml tree, offering a more
  * convenient API than the index-based API used in the tree.
  *
@@ -971,7 +976,7 @@ public:
  * @warning The lifetime of the tree must be larger than that of this
  * object. It is up to the user to ensure that this happens.
  */
-class RYML_EXPORT NodeRef : public detail::RoNodeMethods<NodeRef, ConstNodeRef>
+class RYML_EXPORT NodeRef : public detail::RoNodeMethods<NodeRef, ConstNodeRef> // NOLINT
 {
 public:
 
@@ -1020,7 +1025,7 @@ public:
     NodeRef(Tree *t, id_type id, csubstr  seed_key) noexcept : m_tree(t), m_id(id), m_seed(seed_key) {}
     NodeRef(std::nullptr_t) noexcept : m_tree(nullptr), m_id(NONE), m_seed() {}
 
-    inline void _clear_seed() noexcept { /*do the following manually or an assert is triggered: */ m_seed.str = nullptr; m_seed.len = npos; }
+    void _clear_seed() noexcept { /*do the following manually or an assert is triggered: */ m_seed.str = nullptr; m_seed.len = npos; }
 
     /** @} */
 
@@ -1043,11 +1048,11 @@ public:
      * @{ */
 
     /** true if the object is not referring to any existing or seed node. @see the doc for @ref NodeRef */
-    inline bool invalid() const noexcept { return m_tree == nullptr || m_id == NONE; }
+    bool invalid() const noexcept { return m_tree == nullptr || m_id == NONE; }
     /** true if the object is not invalid and in seed state. @see the doc for @ref NodeRef */
-    inline bool is_seed() const noexcept { return (m_tree != NULL && m_id != NONE) && (m_seed.str != nullptr || m_seed.len != (size_t)NONE); }
+    bool is_seed() const noexcept { return (m_tree != nullptr && m_id != NONE) && (m_seed.str != nullptr || m_seed.len != (size_t)NONE); }
     /** true if the object is not invalid and not in seed state. @see the doc for @ref NodeRef */
-    inline bool readable() const noexcept { return (m_tree != NULL && m_id != NONE) && (m_seed.str == nullptr && m_seed.len == (size_t)NONE); }
+    bool readable() const noexcept { return (m_tree != nullptr && m_id != NONE) && (m_seed.str == nullptr && m_seed.len == (size_t)NONE); }
 
     RYML_DEPRECATED("use one of readable(), is_seed() or !invalid()") inline bool valid() const { return m_tree != nullptr && m_id != NONE; }
 
@@ -1076,10 +1081,10 @@ public:
         }
         return false;
     }
-    inline bool operator!= (NodeRef const& that) const { return ! this->operator==(that); }
+    bool operator!= (NodeRef const& that) const { return ! this->operator==(that); }
 
-    inline bool operator== (ConstNodeRef const& that) const { return m_tree == that.m_tree && m_id == that.m_id && !is_seed(); }
-    inline bool operator!= (ConstNodeRef const& that) const { return ! this->operator==(that); }
+    bool operator== (ConstNodeRef const& that) const { return m_tree == that.m_tree && m_id == that.m_id && !is_seed(); }
+    bool operator!= (ConstNodeRef const& that) const { return ! this->operator==(that); }
 
     /** @cond dev */
     RYML_DEPRECATED("use !readable()") bool operator== (std::nullptr_t) const { return m_tree == nullptr || m_id == NONE || is_seed(); }
@@ -1126,7 +1131,7 @@ public:
 
 public:
 
-    inline void clear()
+    void clear()
     {
         if(is_seed())
             return;
@@ -1134,65 +1139,65 @@ public:
         m_tree->_clear(m_id);
     }
 
-    inline void clear_key()
+    void clear_key()
     {
         if(is_seed())
             return;
         m_tree->_clear_key(m_id);
     }
 
-    inline void clear_val()
+    void clear_val()
     {
         if(is_seed())
             return;
         m_tree->_clear_val(m_id);
     }
 
-    inline void clear_children()
+    void clear_children()
     {
         if(is_seed())
             return;
         m_tree->remove_children(m_id);
     }
 
-    inline void operator= (NodeType_e t)
+    void operator= (NodeType_e t)
     {
         _apply_seed();
         m_tree->_add_flags(m_id, t);
     }
 
-    inline void operator|= (NodeType_e t)
+    void operator|= (NodeType_e t)
     {
         _apply_seed();
         m_tree->_add_flags(m_id, t);
     }
 
-    inline void operator= (NodeInit const& v)
+    void operator= (NodeInit const& v)
     {
         _apply_seed();
         _apply(v);
     }
 
-    inline void operator= (NodeScalar const& v)
+    void operator= (NodeScalar const& v)
     {
         _apply_seed();
         _apply(v);
     }
 
-    inline void operator= (std::nullptr_t)
+    void operator= (std::nullptr_t)
     {
         _apply_seed();
         _apply(csubstr{});
     }
 
-    inline void operator= (csubstr v)
+    void operator= (csubstr v)
     {
         _apply_seed();
         _apply(v);
     }
 
     template<size_t N>
-    inline void operator= (const char (&v)[N])
+    void operator= (const char (&v)[N])
     {
         _apply_seed();
         csubstr sv;
@@ -1209,7 +1214,7 @@ public:
 
     /** serialize a variable to the arena */
     template<class T>
-    inline csubstr to_arena(T const& C4_RESTRICT s)
+    csubstr to_arena(T const& C4_RESTRICT s)
     {
         RYML_ASSERT(m_tree); // no need for valid or readable
         return m_tree->to_arena(s);
@@ -1255,7 +1260,7 @@ public:
     size_t set_val_serialized(fmt::const_base64_wrapper w);
 
     /** serialize a variable, then assign the result to the node's val */
-    inline NodeRef& operator<< (csubstr s)
+    NodeRef& operator<< (csubstr s)
     {
         // this overload is needed to prevent ambiguity (there's also
         // operator<< for writing a substr to a stream)
@@ -1266,7 +1271,7 @@ public:
     }
 
     template<class T>
-    inline NodeRef& operator<< (T const& C4_RESTRICT v)
+    NodeRef& operator<< (T const& C4_RESTRICT v)
     {
         _apply_seed();
         write(this, v);
@@ -1275,7 +1280,7 @@ public:
 
     /** serialize a variable, then assign the result to the node's key */
     template<class T>
-    inline NodeRef& operator<< (Key<const T> const& C4_RESTRICT v)
+    NodeRef& operator<< (Key<const T> const& C4_RESTRICT v)
     {
         _apply_seed();
         set_key_serialized(v.k);
@@ -1284,7 +1289,7 @@ public:
 
     /** serialize a variable, then assign the result to the node's key */
     template<class T>
-    inline NodeRef& operator<< (Key<T> const& C4_RESTRICT v)
+    NodeRef& operator<< (Key<T> const& C4_RESTRICT v)
     {
         _apply_seed();
         set_key_serialized(v.k);
@@ -1330,17 +1335,17 @@ private:
         }
     }
 
-    inline void _apply(csubstr v)
+    void _apply(csubstr v)
     {
         m_tree->_set_val(m_id, v);
     }
 
-    inline void _apply(NodeScalar const& v)
+    void _apply(NodeScalar const& v)
     {
         m_tree->_set_val(m_id, v);
     }
 
-    inline void _apply(NodeInit const& i)
+    void _apply(NodeInit const& i)
     {
         m_tree->_set(m_id, i);
     }
@@ -1350,7 +1355,7 @@ public:
     /** @name modification of hierarchy */
     /** @{ */
 
-    inline NodeRef insert_child(NodeRef after)
+    NodeRef insert_child(NodeRef after)
     {
         _C4RR();
         _RYML_CB_ASSERT(m_tree->m_callbacks, after.m_tree == m_tree);
@@ -1358,7 +1363,7 @@ public:
         return r;
     }
 
-    inline NodeRef insert_child(NodeInit const& i, NodeRef after)
+    NodeRef insert_child(NodeInit const& i, NodeRef after)
     {
         _C4RR();
         _RYML_CB_ASSERT(m_tree->m_callbacks, after.m_tree == m_tree);
@@ -1367,14 +1372,14 @@ public:
         return r;
     }
 
-    inline NodeRef prepend_child()
+    NodeRef prepend_child()
     {
         _C4RR();
         NodeRef r(m_tree, m_tree->insert_child(m_id, NONE));
         return r;
     }
 
-    inline NodeRef prepend_child(NodeInit const& i)
+    NodeRef prepend_child(NodeInit const& i)
     {
         _C4RR();
         NodeRef r(m_tree, m_tree->insert_child(m_id, NONE));
@@ -1382,14 +1387,14 @@ public:
         return r;
     }
 
-    inline NodeRef append_child()
+    NodeRef append_child()
     {
         _C4RR();
         NodeRef r(m_tree, m_tree->append_child(m_id));
         return r;
     }
 
-    inline NodeRef append_child(NodeInit const& i)
+    NodeRef append_child(NodeInit const& i)
     {
         _C4RR();
         NodeRef r(m_tree, m_tree->append_child(m_id));
@@ -1397,7 +1402,7 @@ public:
         return r;
     }
 
-    inline NodeRef insert_sibling(ConstNodeRef const& after)
+    NodeRef insert_sibling(ConstNodeRef const& after)
     {
         _C4RR();
         _RYML_CB_ASSERT(m_tree->m_callbacks, after.m_tree == m_tree);
@@ -1405,7 +1410,7 @@ public:
         return r;
     }
 
-    inline NodeRef insert_sibling(NodeInit const& i, ConstNodeRef const& after)
+    NodeRef insert_sibling(NodeInit const& i, ConstNodeRef const& after)
     {
         _C4RR();
         _RYML_CB_ASSERT(m_tree->m_callbacks, after.m_tree == m_tree);
@@ -1414,14 +1419,14 @@ public:
         return r;
     }
 
-    inline NodeRef prepend_sibling()
+    NodeRef prepend_sibling()
     {
         _C4RR();
         NodeRef r(m_tree, m_tree->prepend_sibling(m_id));
         return r;
     }
 
-    inline NodeRef prepend_sibling(NodeInit const& i)
+    NodeRef prepend_sibling(NodeInit const& i)
     {
         _C4RR();
         NodeRef r(m_tree, m_tree->prepend_sibling(m_id));
@@ -1429,14 +1434,14 @@ public:
         return r;
     }
 
-    inline NodeRef append_sibling()
+    NodeRef append_sibling()
     {
         _C4RR();
         NodeRef r(m_tree, m_tree->append_sibling(m_id));
         return r;
     }
 
-    inline NodeRef append_sibling(NodeInit const& i)
+    NodeRef append_sibling(NodeInit const& i)
     {
         _C4RR();
         NodeRef r(m_tree, m_tree->append_sibling(m_id));
@@ -1446,7 +1451,7 @@ public:
 
 public:
 
-    inline void remove_child(NodeRef & child)
+    void remove_child(NodeRef & child)
     {
         _C4RR();
         _RYML_CB_ASSERT(m_tree->m_callbacks, has_child(child));
@@ -1456,7 +1461,7 @@ public:
     }
 
     //! remove the nth child of this node
-    inline void remove_child(id_type pos)
+    void remove_child(id_type pos)
     {
         _C4RR();
         _RYML_CB_ASSERT(m_tree->m_callbacks, pos >= 0 && pos < num_children());
@@ -1466,7 +1471,7 @@ public:
     }
 
     //! remove a child by name
-    inline void remove_child(csubstr key)
+    void remove_child(csubstr key)
     {
         _C4RR();
         id_type child = m_tree->find_child(m_id, key);
@@ -1480,7 +1485,7 @@ public:
      * @p after. To move to the first position in the parent, simply
      * pass an empty or default-constructed reference like this:
      * `n.move({})`. */
-    inline void move(ConstNodeRef const& after)
+    void move(ConstNodeRef const& after)
     {
         _C4RR();
         m_tree->move(m_id, after.m_id);
@@ -1490,7 +1495,7 @@ public:
      * different tree), placing it after @p after. When the
      * destination parent is in a new tree, then this node's tree
      * pointer is reset to the tree of the parent node. */
-    inline void move(NodeRef const& parent, ConstNodeRef const& after)
+    void move(NodeRef const& parent, ConstNodeRef const& after)
     {
         _C4RR();
         if(parent.m_tree == m_tree)
@@ -1508,7 +1513,7 @@ public:
      * place it after the node @p after. To place into the first
      * position of the parent, simply pass an empty or
      * default-constructed reference like this: `n.move({})`. */
-    inline NodeRef duplicate(ConstNodeRef const& after) const
+    NodeRef duplicate(ConstNodeRef const& after) const
     {
         _C4RR();
         _RYML_CB_ASSERT(m_tree->m_callbacks, m_tree == after.m_tree || after.m_id == NONE);
@@ -1522,7 +1527,7 @@ public:
      * @p after. To place into the first position of the parent,
      * simply pass an empty or default-constructed reference like
      * this: `n.move({})`. */
-    inline NodeRef duplicate(NodeRef const& parent, ConstNodeRef const& after) const
+    NodeRef duplicate(NodeRef const& parent, ConstNodeRef const& after) const
     {
         _C4RR();
         _RYML_CB_ASSERT(m_tree->m_callbacks, parent.m_tree == after.m_tree || after.m_id == NONE);
@@ -1540,7 +1545,7 @@ public:
         }
     }
 
-    inline void duplicate_children(NodeRef const& parent, ConstNodeRef const& after) const
+    void duplicate_children(NodeRef const& parent, ConstNodeRef const& after) const
     {
         _C4RR();
         _RYML_CB_ASSERT(m_tree->m_callbacks, parent.m_tree == after.m_tree);
@@ -1560,6 +1565,8 @@ public:
 #undef _C4RID
 };
 
+// NOLINTEND(cppcoreguidelines-c-copy-assignment-signature,misc-unconventional-assign-operator)
+
 
 //-----------------------------------------------------------------------------
 
@@ -1569,7 +1576,7 @@ inline ConstNodeRef::ConstNodeRef(NodeRef const& that) noexcept
 {
 }
 
-inline ConstNodeRef::ConstNodeRef(NodeRef && that) noexcept
+inline ConstNodeRef::ConstNodeRef(NodeRef && that) noexcept // NOLINT
     : m_tree(that.m_tree)
     , m_id(!that.is_seed() ? that.id() : (id_type)NONE)
 {
@@ -1583,7 +1590,7 @@ inline ConstNodeRef& ConstNodeRef::operator= (NodeRef const& that) noexcept
     return *this;
 }
 
-inline ConstNodeRef& ConstNodeRef::operator= (NodeRef && that) noexcept
+inline ConstNodeRef& ConstNodeRef::operator= (NodeRef && that) noexcept // NOLINT
 {
     m_tree = (that.m_tree);
     m_id = (!that.is_seed() ? that.id() : (id_type)NONE);
@@ -1599,117 +1606,33 @@ inline ConstNodeRef& ConstNodeRef::operator= (NodeRef && that) noexcept
  */
 
 template<class T>
-inline void write(NodeRef *n, T const& v)
+C4_ALWAYS_INLINE void write(NodeRef *n, T const& v)
 {
     n->set_val_serialized(v);
 }
 
-namespace detail {
-// SFINAE overloads for skipping leading + which cannot be read by the charconv functions
 template<class T>
-C4_ALWAYS_INLINE auto read_skip_plus(csubstr val, T *v)
-    -> typename std::enable_if<std::is_arithmetic<T>::value, bool>::type
+C4_ALWAYS_INLINE bool read(ConstNodeRef const& C4_RESTRICT n, T *v)
 {
-    if(val.begins_with('+'))
-        val = val.sub(1);
-    return from_chars(val, v);
-}
-template<class T>
-C4_ALWAYS_INLINE auto read_skip_plus(csubstr val, T *v)
-    -> typename std::enable_if< ! std::is_arithmetic<T>::value, bool>::type
-{
-    return from_chars(val, v);
-}
-} // namespace detail
-
-/** convert the val of a scalar node to a particular type, by
- * forwarding its val to @ref from_chars<T>(). The full string is
- * used.
- * @return false if the conversion failed */
-template<class T>
-inline auto read(NodeRef const& n, T *v)
-    -> typename std::enable_if< ! std::is_floating_point<T>::value, bool>::type
-{
-    csubstr val = n.val();
-    if(val.empty())
-        return false;
-    return detail::read_skip_plus(val, v);
-}
-/** convert the val of a scalar node to a particular type, by
- * forwarding its val to @ref from_chars<T>(). The full string is
- * used.
- * @return false if the conversion failed */
-template<class T>
-inline auto read(ConstNodeRef const& n, T *v)
-    -> typename std::enable_if< ! std::is_floating_point<T>::value, bool>::type
-{
-    csubstr val = n.val();
-    if(val.empty())
-        return false;
-    return detail::read_skip_plus(val, v);
+    return read(n.m_tree, n.m_id, v);
 }
 
-/** convert the val of a scalar node to a floating point type, by
- * forwarding its val to @ref from_chars_float<T>().
- *
- * @return false if the conversion failed
- *
- * @warning Unlike non-floating types, only the leading part of the
- * string that may constitute a number is processed. This happens
- * because the float parsing is delegated to fast_float, which is
- * implemented that way. Consequently, for example, all of `"34"`,
- * `"34 "` `"34hg"` `"34 gh"` will be read as 34. If you are not sure
- * about the contents of the data, you can use
- * csubstr::first_real_span() to check before calling `>>`, for
- * example like this:
- *
- * ```cpp
- * csubstr val = node.val();
- * if(val.first_real_span() == val)
- *     node >> v;
- * else
- *     ERROR("not a real")
- * ```
- */
 template<class T>
-typename std::enable_if<std::is_floating_point<T>::value, bool>::type
-inline read(NodeRef const& n, T *v)
+C4_ALWAYS_INLINE bool read(NodeRef const& C4_RESTRICT n, T *v)
 {
-    csubstr val = n.val();
-    if(val.empty())
-        return false;
-    return from_chars_float(val, v);
+    return read(n.tree(), n.id(), v);
 }
-/** convert the val of a scalar node to a floating point type, by
- * forwarding its val to @ref from_chars_float<T>().
- *
- * @return false if the conversion failed
- *
- * @warning Unlike non-floating types, only the leading part of the
- * string that may constitute a number is processed. This happens
- * because the float parsing is delegated to fast_float, which is
- * implemented that way. Consequently, for example, all of `"34"`,
- * `"34 "` `"34hg"` `"34 gh"` will be read as 34. If you are not sure
- * about the contents of the data, you can use
- * csubstr::first_real_span() to check before calling `>>`, for
- * example like this:
- *
- * ```cpp
- * csubstr val = node.val();
- * if(val.first_real_span() == val)
- *     node >> v;
- * else
- *     ERROR("not a real")
- * ```
- */
+
 template<class T>
-typename std::enable_if<std::is_floating_point<T>::value, bool>::type
-inline read(ConstNodeRef const& n, T *v)
+C4_ALWAYS_INLINE bool readkey(ConstNodeRef const& C4_RESTRICT n, T *v)
 {
-    csubstr val = n.val();
-    if(val.empty())
-        return false;
-    return from_chars_float(val, v);
+    return readkey(n.m_tree, n.m_id, v);
+}
+
+template<class T>
+C4_ALWAYS_INLINE bool readkey(NodeRef const& C4_RESTRICT n, T *v)
+{
+    return readkey(n.tree(), n.id(), v);
 }
 
 /** @} */

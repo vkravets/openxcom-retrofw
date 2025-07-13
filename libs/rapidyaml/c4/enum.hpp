@@ -2,6 +2,7 @@
 #define _C4_ENUM_HPP_
 
 #include "c4/error.hpp"
+#include <cstddef>
 #include <string.h>
 
 /** @file enum.hpp utilities for enums: convert to/from string
@@ -77,7 +78,7 @@ public:
 private:
 
     Sym const* m_symbols;
-    size_t const m_num;
+    size_t const m_num; // NOLINT(*avoid-const*)
 
 };
 

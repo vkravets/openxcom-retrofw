@@ -67,7 +67,7 @@ csubstr NodeType::type_str(substr buf, NodeType_e flags) noexcept
 
     #define _prflag(fl, txt)                                    \
     do {                                                        \
-        if((flags & fl) == (fl))                                \
+        if((flags & (fl)) == (fl))                              \
         {                                                       \
             if(gotone)                                          \
             {                                                   \
@@ -80,7 +80,7 @@ csubstr NodeType::type_str(substr buf, NodeType_e flags) noexcept
                 memcpy(buf.str + pos, fltxt.str, fltxt.len);    \
             pos += fltxt.len;                                   \
             gotone = true;                                      \
-            flags = (flags & ~fl); /*remove the flag*/          \
+            flags = (flags & ~(fl)); /*remove the flag*/        \
         }                                                       \
     } while(0)
 
@@ -88,6 +88,7 @@ csubstr NodeType::type_str(substr buf, NodeType_e flags) noexcept
     _prflag(DOC, "DOC");
     // key properties
     _prflag(KEY, "KEY");
+    _prflag(KEYNIL, "KNIL");
     _prflag(KEYTAG, "KTAG");
     _prflag(KEYANCH, "KANCH");
     _prflag(KEYREF, "KREF");
@@ -99,6 +100,7 @@ csubstr NodeType::type_str(substr buf, NodeType_e flags) noexcept
     _prflag(KEY_UNFILT, "KUNFILT");
     // val properties
     _prflag(VAL, "VAL");
+    _prflag(VALNIL, "VNIL");
     _prflag(VALTAG, "VTAG");
     _prflag(VALANCH, "VANCH");
     _prflag(VALREF, "VREF");

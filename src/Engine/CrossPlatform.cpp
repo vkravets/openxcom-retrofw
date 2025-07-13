@@ -76,7 +76,9 @@
 #include <sys/types.h>
 #include <pwd.h>
 #ifndef __CYGWIN__
+/*
 #include <execinfo.h>
+*/
 #endif
 #include <cxxabi.h>
 #include <dlfcn.h>
