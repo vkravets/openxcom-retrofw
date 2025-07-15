@@ -85,3 +85,4 @@ bin/user
 /.kdev4/
 /*.kdev4
 .vscode/
+src/CMakeFiles/**
