@@ -8,7 +8,7 @@ declare -r CXX=${ARCH}g++
 declare -r LD=${ARCH}ld
 declare -r BUILD_DIR=build-rg97-retrofw
 
-declare -r CXXFLAGS="-march=mips32 -DNO_STACK_TRACE=1 -DGAMEPAD_ENABLED=1"
+declare -r CXXFLAGS="-march=mips32 -DNO_STACK_TRACE=1 -DGAMEPAD_ENABLED=1 -DDINGOO"
 
 cd ../../
 

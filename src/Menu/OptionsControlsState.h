@@ -57,6 +57,7 @@ private:
 	void addControls(const std::vector<OptionInfo> &keys);
 	OptionInfo *getControl(size_t sel);
 	std::string ucWords(std::string str);
+	std::string keyToButton(SDLKey key);
 public:
 	/// Creates the Controls state.
 	OptionsControlsState(OptionsOrigin origin);

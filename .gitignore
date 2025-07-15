@@ -69,6 +69,7 @@ deps/
 docs/html/
 build/
 build-rg35xx-garlic/
+build-rg97-retrofw/
 Dependencies/
 translations/
 *.*.user
@@ -83,3 +84,4 @@ bin/Win32/user*
 bin/user
 /.kdev4/
 /*.kdev4
+.vscode/

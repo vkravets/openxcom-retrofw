@@ -46,6 +46,15 @@
 #include <algorithm>
 #include "../fallthrough.h"
 #include "Controller.h"
+uint8_t *keystate = SDL_GetKeyState(NULL);
+
+#define	BUTTON_UP		SDLK_UP			// Up
+#define	BUTTON_DOWN		SDLK_DOWN		// Down
+#define	BUTTON_LEFT		SDLK_LEFT		// Left
+#define	BUTTON_RIGHT	SDLK_RIGHT		// Right
+
+int av_mouse_cur_x;
+int av_mouse_cur_y;
 
 namespace OpenXcom
 {
@@ -199,7 +208,7 @@ void Game::run()
 
 			switch(_event.type)
 			{
-				
+
 				case SDL_JOYBUTTONDOWN:
 				case SDL_JOYBUTTONUP:
 				case SDL_JOYHATMOTION:
@@ -351,6 +360,24 @@ void Game::run()
 				// States stack was changed, break the loop so new state
 				// can be initialized before processing new events
 				break;
+			}
+		}
+
+		{
+			//poll mouse state
+
+			if ((keystate[BUTTON_DOWN] || keystate[BUTTON_UP] ||
+			keystate[BUTTON_LEFT] || keystate[BUTTON_RIGHT])) {
+				SDL_GetMouseState(&av_mouse_cur_x, &av_mouse_cur_y);
+				av_mouse_cur_x += 2 * (keystate[BUTTON_RIGHT] - keystate[BUTTON_LEFT]);
+				av_mouse_cur_y += 2 * (keystate[BUTTON_DOWN]  - keystate[BUTTON_UP]);
+
+				if (av_mouse_cur_x < 0) av_mouse_cur_x = 0;
+				if (av_mouse_cur_x > 640) av_mouse_cur_x = 640;
+				if (av_mouse_cur_y < 0) av_mouse_cur_y = 0;
+				if (av_mouse_cur_y > 480) av_mouse_cur_y = 480;
+
+				SDL_WarpMouse(av_mouse_cur_x, av_mouse_cur_y);
 			}
 		}
 

@@ -42,7 +42,7 @@ TextEdit::TextEdit(State *state, int width, int height, int x, int y) : Interact
 {
 	_isFocused = false;
 	_text = new Text(width, height, 0, 0);
-	_timer = new Timer(100);
+	_timer = new Timer(200);
 	_timer->onTimer((SurfaceHandler)&TextEdit::blink);
 	_caret = new Text(16, 17, 0, 0);
 	_caret->setText("|");
@@ -476,27 +476,27 @@ void TextEdit::keyboardPress(Action *action, State *state)
 	{
 		switch (action->getDetails()->key.keysym.sym)
 		{
-		case SDLK_UP:
+		case SDLK_SPACE:
 			_char++;
 			if (_char > '~')
 			{
 				_char = ' ';
 			}
 			break;
-		case SDLK_DOWN:
+		case SDLK_LALT:
 			_char--;
 			if (_char < ' ')
 			{
 				_char = '~';
 			}
 			break;
-		case SDLK_LEFT:
+		case SDLK_LSHIFT:
 			if (!_value.empty())
 			{
 				_value.resize(_value.length() - 1);
 			}
 			break;
-		case SDLK_RIGHT:
+		case SDLK_LCTRL:
 			if (!exceedsMaxWidth(_char))
 			{
 				_value += _char;
